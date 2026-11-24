@@ -177,7 +177,7 @@ talk you out of it.
 **Settings → Apps → Install app → ⋮ → Repositories**, add:
 
 ```
-https://github.com/alex-so-3/petkit-local
+https://github.com/eduardoribeiro/petkit-local
 ```
 
 > Recent Home Assistant releases renamed **Add-ons** to **Apps** in the interface. If your menu still

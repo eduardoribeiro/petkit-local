@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1 — 2026-11-24
+
+- Add local support for the Fresh Element Gemini D4S dual-hopper feeder,
+  including manual feed controls and its provisioning response (upstream PR #43).
+- Publish the add-on and container image from the eduardoribeiro fork.
+
 ## 2.1.0 — 2026-08-12
 
 The YumShare Dual-Hopper (D4SH) camera feeder is now confirmed working, and most
