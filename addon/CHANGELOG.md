@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.2 — 2026-11-24
+
+- Fix MQTT TLS broker startup with newer amqtt releases.
+
 ## 2.2.1 — 2026-11-24
 
 - Add local support for the Fresh Element Gemini D4S dual-hopper feeder,

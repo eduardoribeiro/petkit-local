@@ -235,9 +235,8 @@ async def start_broker(
     # ECDHE, no DHE. Python 3.12's ssl.create_default_context() excludes plain
     # RSA (no forward secrecy), so the TLS handshake fails with no shared
     # cipher. We override _create_ssl_context to accept what the device sends.
-    _orig = Broker._create_ssl_context
+    _orig = broker._create_ssl_context
 
-    @staticmethod
     def _device_friendly_ssl_context(listener):
         ctx = _orig(listener)
         ctx.set_ciphers("DEFAULT:@SECLEVEL=0")
