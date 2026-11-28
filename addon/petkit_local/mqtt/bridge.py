@@ -37,6 +37,7 @@ from petkit_local.ha.categories import get_setting_fields
 from petkit_local.events import codes, ingest
 from petkit_local.events.ingest import (apply_derived_state, apply_state_snapshot,
                                         entity_for_event, telemetry_only)
+from petkit_local.events.normalize import clear_completed_t4_calibration
 from petkit_local.mqtt.ble_relay import BLERelay
 from petkit_local.mqtt.topics import (
     parse_topic, event_reply_topic, is_server_published, service_topic, user_get_topic,
@@ -450,6 +451,7 @@ class MQTTBridge:
                 # Overlay the flat keys the entities read (MQTT nests differently
                 # from the HTTP state_report).
                 device.state.update(normalize_property_params(device.device_type, params))
+                clear_completed_t4_calibration(device)
                 apply_consumable_state(device)
                 self._sync_settings_from_device(device, params)
                 self._registry.mark_dirty()

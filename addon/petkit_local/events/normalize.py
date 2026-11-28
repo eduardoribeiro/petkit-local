@@ -435,13 +435,13 @@ def apply_state_snapshot(device: Device, state: Any) -> bool:
     device.state.update(state)  # raw, for the panel's Debug info and the echoes
     device.state.update(parse_state_report(device.device_type, state))
     device.state.update(normalize_property_params(device.device_type, state))
-    _clear_completed_t4_calibration(device)
+    clear_completed_t4_calibration(device)
     apply_consumable_state(device)
     device.last_state_report = time.time()
     return True
 
 
-def _clear_completed_t4_calibration(device: Device) -> None:
+def clear_completed_t4_calibration(device: Device) -> None:
     """A confirmed completion wins over mode 6 retained in later snapshots."""
     if (device.device_type.lower() != "t4"
             or device.state.get("workingState") != codes.T4_LITTER_CALIBRATION_MODE):
@@ -451,8 +451,11 @@ def _clear_completed_t4_calibration(device: Device) -> None:
     if not isinstance(history, dict):
         return
     completed = to_float(history.get("completed_at"), 0)
-    started = to_float(history.get("started_at"), float("inf"))
-    if completed >= started:
+    started = to_float(history.get("started_at"), None)
+    # A completion is authoritative even if the add-on began observing after
+    # the start. When a newer start is known, it must still win over a delayed
+    # completion from the previous run.
+    if started is None or completed >= started:
         device.state["workingState"] = -1
 
 
@@ -486,7 +489,7 @@ def _apply_t4_calibration_event(device: Device, event_type: str, content: dict,
         history["result"] = content.get("result")
     elif timestamp > to_float(history.get("completed_at"), 0):
         device.state["workingState"] = codes.T4_LITTER_CALIBRATION_MODE
-    _clear_completed_t4_calibration(device)
+    clear_completed_t4_calibration(device)
 
 
 def apply_derived_state(device: Device, event_type: str, content: dict, *,

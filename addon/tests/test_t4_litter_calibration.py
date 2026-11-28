@@ -7,7 +7,9 @@ import pytest
 
 from petkit_local.devices.base import Device, Refused
 from petkit_local.events import codes, decode
-from petkit_local.events.normalize import apply_derived_state, apply_state_snapshot
+from petkit_local.events.normalize import (
+    apply_derived_state, apply_state_snapshot, clear_completed_t4_calibration,
+)
 from petkit_local.ha.categories import get_entities_for_device
 from petkit_local.ha.commands import ALL_ACTIONS
 
@@ -63,6 +65,23 @@ def test_t4_completion_clears_a_retained_mode_without_inventing_telemetry():
     assert device.state["sandPercent"] == 16
     assert device.state["usedTimes"] == 71
     apply_state_snapshot(device, {"workState": {"workMode": 6}})
+    assert device.state["workingState"] == -1
+
+
+def test_t4_completion_clears_a_retained_mode_without_an_observed_start():
+    device = Device(device_type="t4", petkit_id=1)
+    device.state = {"workingState": 6}
+    apply_derived_state(device, "18", {"result": 1}, event_time=time.time())
+    assert device.state["workingState"] == -1
+
+
+def test_t4_completed_calibration_stays_idle_after_normal_telemetry():
+    device = Device(device_type="t4", petkit_id=1)
+    device.state = {"workingState": 6}
+    device.config["local"] = {"litter_calibration": {"completed_at": time.time()}}
+    # Both ordinary HTTP state reports and MQTT property posts normalize into
+    # this state before applying the common completion cleanup.
+    clear_completed_t4_calibration(device)
     assert device.state["workingState"] == -1
 
 

@@ -167,6 +167,17 @@ def _episode_parents(events: list[dict]) -> dict:
     return parents
 
 
+def _is_primary_completion(event: dict) -> bool:
+    """Whether this row is the model-specific, card-heading completion.
+
+    Numeric HTTP event types are only meaningful alongside their device type.
+    A T4's code 18 is a completion while the generic litter definition is a
+    detail step, so the legacy global code set cannot select it correctly.
+    """
+    code = codes.lookup(event.get("event_type"), event.get("device_type"))
+    return bool(code and code.role == codes.ROLE_DONE and not code.detail)
+
+
 def _assign_episode_media(session: dict, events: list[dict]) -> None:
     """Give each sub-episode's media to exactly one of its lines.
 
@@ -203,7 +214,7 @@ def _assign_episode_media(session: dict, events: list[dict]) -> None:
         if not media:
             continue
         carrier = next(
-            (s for s in subs if s.get("event_type") in codes.PRIMARY_DONE_CODES),
+            (s for s in subs if _is_primary_completion(s)),
             subs[-1],
         )
         carrier["media"] = media
@@ -395,8 +406,7 @@ def _cards_from_orphan_cleanings(events: list[dict],
     sessions = []
     for rel, group in orphan_episodes.items():
         group.sort(key=lambda e: e.get("ts") or 0)
-        anchor = next((e for e in group
-                       if e.get("event_type") in codes.PRIMARY_DONE_CODES), None)
+        anchor = next((e for e in group if _is_primary_completion(e)), None)
         if anchor is None:
             # No completion step, so nothing here claims to summarise the
             # cycle; the steps stay standalone rather than one being promoted
