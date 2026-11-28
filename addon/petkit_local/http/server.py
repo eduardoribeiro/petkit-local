@@ -33,7 +33,7 @@ from petkit_local.http.middleware import (
 )
 from petkit_local.http.handlers.signup import handle_signup
 from petkit_local.http.handlers.iot_device_info import (
-    handle_iot_device_info, handle_iot_device_info_flat,
+    handle_iot_device_info,
 )
 from petkit_local.http.handlers.serverinfo import handle_serverinfo
 from petkit_local.http.handlers.state_report import handle_state_report
@@ -69,13 +69,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-async def handle_iot_device_info_by_model(request: web.Request) -> web.Response:
-    """Use the flat credentials returned during live D4S provisioning."""
-    if request.match_info.get("device_type") == "d4s":
-        return await handle_iot_device_info_flat(request)
-    return await handle_iot_device_info(request)
-
-
 def create_app(registry: DeviceRegistry, config: dict) -> web.Application:
     """Build the device-facing aiohttp application with every firmware route.
 
@@ -107,9 +100,9 @@ def create_app(registry: DeviceRegistry, config: dict) -> web.Application:
     for ver in ("6",):
         p = f"/{ver}/{{device_type}}"
         app.router.add_route("*", f"{p}/dev_signup", handle_signup)
-        # A live D4S completed provisioning with the flat response; the D4SH
-        # cloud capture for this endpoint is ali-wrapped.
-        app.router.add_route("*", f"{p}/dev_iot_device_info", handle_iot_device_info_by_model)
+        # Shape is selected inside the handler from the requesting model:
+        # T3/T4/D4S are flat; the captured D4SH response is ali-wrapped.
+        app.router.add_route("*", f"{p}/dev_iot_device_info", handle_iot_device_info)
         app.router.add_route("*", f"{p}/dev_only_iot_device_info", handle_iot_device_info)
         app.router.add_route("*", f"{p}/dev_only_iot_device_info_v2", handle_iot_device_info)
         app.router.add_route("*", f"{p}/dev_serverinfo", handle_serverinfo)

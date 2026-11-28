@@ -263,7 +263,11 @@ def test_a_command_is_labelled_with_a_msg_type_the_device_dispatches():
 
     device = Device(device_type="d4sh", petkit_id=1, serial_number="F")
     for key, build in ALL_ACTIONS.items():
-        suffix, envelope = build(device)
+        target = device
+        if key == "finish_litter_calibration":
+            target = Device(device_type="t4", petkit_id=2, online=True)
+            target.state = {"workingState": -1, "petInTime": 0}
+        suffix, envelope = build(target)
         content = json.loads(_to_heartbeat_content(
             {**envelope, "_service_suffix": suffix}))
         assert content["msgType"] in (0, 1, 2), f"{key} -> {content['msgType']}"
@@ -422,18 +426,17 @@ async def test_heartbeat_still_delivers_commands_while_clearing_the_flag():
         await client.close()
 
 
-async def test_all_iot_device_info_endpoints_return_ali_wrapped():
-    """Keep the captured ali-wrapped response for existing device routes."""
+async def test_t4_iot_device_info_returns_flat_esp32_credentials():
     reg = DeviceRegistry()
     client = await _client(reg)
     try:
         await client.post("/6/t4/dev_signup", headers=HDR)
-        for ep in ("dev_iot_device_info", "dev_only_iot_device_info_v2"):
+        for ep in ("dev_iot_device_info", "dev_only_iot_device_info",
+                   "dev_only_iot_device_info_v2"):
             r = await client.post(f"/6/t4/{ep}", headers=HDR)
             res = (await r.json())["result"]
-            assert "ali" in res, f"{ep} should return ali-wrapped"
-            ali = res["ali"]
-            assert ali["productKey"] and ali["deviceSecret"] and ali["mqttHost"]
+            assert "ali" not in res, f"{ep} should return flat credentials"
+            assert res["productKey"] and res["deviceSecret"] and res["mqttHost"]
     finally:
         await client.close()
 
@@ -443,11 +446,45 @@ async def test_d4s_iot_device_info_returns_flat_esp32_credentials():
     client = await _client(reg)
     try:
         await client.post("/6/d4s/dev_signup", headers=HDR)
-        r = await client.post("/6/d4s/dev_iot_device_info", headers=HDR)
+        for ep in ("dev_iot_device_info", "dev_only_iot_device_info",
+                   "dev_only_iot_device_info_v2"):
+            r = await client.post(f"/6/d4s/{ep}", headers=HDR)
+            result = (await r.json())["result"]
+            assert "ali" not in result
+            assert result["productKey"] and result["deviceSecret"]
+            assert result["mqttHost"] == "server"
+    finally:
+        await client.close()
+
+
+async def test_iot_device_info_keeps_d4sh_credentials_ali_wrapped():
+    reg = DeviceRegistry()
+    client = await _client(reg)
+    try:
+        await client.post("/6/d4sh/dev_signup", headers=HDR)
+        r = await client.post("/6/d4sh/dev_iot_device_info", headers=HDR)
         result = (await r.json())["result"]
-        assert "ali" not in result
-        assert result["productKey"] and result["deviceSecret"]
-        assert result["mqttHost"] == "server"
+        assert "ali" in result
+        assert result["ali"]["productKey"] and result["ali"]["deviceSecret"]
+    finally:
+        await client.close()
+
+
+async def test_esp32_aliyun_mqtt_host_is_opt_in_and_esp32_only():
+    reg = DeviceRegistry()
+    client = await _client(reg, {**CONFIG, "esp32_aliyun_mqtt_host": True})
+    try:
+        await client.post("/6/t4/dev_signup", headers=HDR)
+        r = await client.post("/6/t4/dev_iot_device_info", headers=HDR)
+        result = (await r.json())["result"]
+        t4 = reg.get(100)
+        assert result["mqttHost"] == t4.aliyun_mqtt_host
+        assert result["mqttHost"].endswith(".iot-as-mqtt.eu-central-1.aliyuncs.com")
+
+        t5_headers = {"X-Device": "id=101&sn=SN101"}
+        await client.post("/6/t5/dev_signup", headers=t5_headers)
+        r = await client.post("/6/t5/dev_iot_device_info", headers=t5_headers)
+        assert (await r.json())["result"]["ali"]["mqttHost"] == "server"
     finally:
         await client.close()
 
