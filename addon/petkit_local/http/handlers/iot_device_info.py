@@ -20,6 +20,13 @@ from petkit_local.http.handlers._common import (
 
 log = logging.getLogger(__name__)
 
+#: The ESP32 models whose stock firmware expects a flat credential block (no
+#: ``ali`` wrapper).  A live D4S provisioned only after receiving that shape;
+#: T3/T4 also re-run signup and credential discovery when given the wrapper.
+#: Keep this an explicit evidence-led list: the ESP32 feeders are not covered
+#: by that observation and retain their captured wrapped response.
+FLAT_CREDENTIAL_TYPES = frozenset({"d4s", "t3", "t4"})
+
 
 def self_mqtt_host(config: dict) -> str:
     """Return the broker hostname to hand devices — the box they already reach.
@@ -40,6 +47,19 @@ def self_mqtt_host(config: dict) -> str:
         heartbeat, which is slower but needs no broker.
     """
     return urlparse(config.get("api_url", "")).hostname or ""
+
+
+def mqtt_host_for(device: Device, config: dict) -> str:
+    """Return the broker hostname for ``device``.
+
+    The normal answer is this add-on's broker.  An operator may opt an ESP32
+    device into its Aliyun-shaped hostname, but that requires their own DNS
+    and a certificate trusted by the device; it is off by default.  Proxy mode
+    has a separate redaction path and deliberately keeps its usual local host.
+    """
+    if config.get("esp32_aliyun_mqtt_host") and not device.is_next_gen:
+        return device.aliyun_mqtt_host
+    return device.resolve_mqtt_host(self_mqtt_host(config))
 
 
 def _resolve_or_create_device(request: web.Request) -> Device | None:
@@ -70,21 +90,24 @@ def _resolve_or_create_device(request: web.Request) -> Device | None:
 
 
 async def handle_iot_device_info(request: web.Request) -> web.Response:
-    """`dev_only_iot_device_info[_v2]` (Ingenic) — Aliyun-wrapped credentials.
+    """Return MQTT credentials in the model's observed response shape.
 
     Returns:
-        `payloads.to_iot_device_info()`: the broker host plus the product key,
-        device name and secret the device signs its MQTT CONNECT with (see
-        `mqtt/auth.py`), nested in the Aliyun IoT envelope this firmware family
-        expects. `handle_iot_device_info_flat` returns the same facts unnested.
+        The broker host plus the product key, device name and secret the device
+        signs its MQTT CONNECT with.  T3, T4 and D4S receive the flat block;
+        every other model keeps the Aliyun-wrapped block.
     """
     device = _resolve_or_create_device(request)
     if not device:
         return no_device_response()
-    mqtt_host = device.resolve_mqtt_host(self_mqtt_host(request.app["config"]))
-    log.info("IoT device info: id=%d -> pk=%s dn=%s mqttHost=%s",
-             device.petkit_id, device.mqtt_product_key, device.mqtt_device_name, mqtt_host)
-    return web.json_response(payloads.to_iot_device_info(device, mqtt_host))
+    mqtt_host = mqtt_host_for(device, request.app["config"])
+    flat = device.device_type.lower() in FLAT_CREDENTIAL_TYPES
+    log.info("IoT device info%s: id=%d -> pk=%s dn=%s mqttHost=%s",
+             " (flat)" if flat else "", device.petkit_id,
+             device.mqtt_product_key, device.mqtt_device_name, mqtt_host)
+    body = (payloads.to_iot_device_info_flat(device, mqtt_host) if flat
+            else payloads.to_iot_device_info(device, mqtt_host))
+    return web.json_response(body)
 
 
 async def handle_iot_device_info_flat(request: web.Request) -> web.Response:
@@ -98,7 +121,7 @@ async def handle_iot_device_info_flat(request: web.Request) -> web.Response:
     device = _resolve_or_create_device(request)
     if not device:
         return no_device_response()
-    mqtt_host = device.resolve_mqtt_host(self_mqtt_host(request.app["config"]))
+    mqtt_host = mqtt_host_for(device, request.app["config"])
     log.info("IoT device info (flat): id=%d -> pk=%s dn=%s mqttHost=%s",
              device.petkit_id, device.mqtt_product_key, device.mqtt_device_name, mqtt_host)
     return web.json_response(payloads.to_iot_device_info_flat(device, mqtt_host))

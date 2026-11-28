@@ -209,6 +209,21 @@ def test_mqtt_cleaning_cycle_is_one_card():
         "light_over", "work_start"]
 
 
+def test_t4_calibration_start_and_completion_make_one_card():
+    """T4 code 18 is done only in its model-specific HTTP namespace."""
+    rows = [
+        _ev(1, 1, 100.0, "3", "cleaning", related_event="calibration"),
+        _ev(2, 1, 120.0, "18", "cleaning", related_event="calibration"),
+    ]
+    for row in rows:
+        row["device_type"] = "t4"
+
+    sessions = ingest.group_sessions(rows)
+    assert len(sessions) == 1
+    assert sessions[0]["event_type"] == "18"
+    assert [event["event_type"] for event in sessions[0]["sub_events"]] == ["3"]
+
+
 def test_from_file_info_requires_file_id():
     dev = _Dev(petkit_id=1)
     try:

@@ -46,6 +46,7 @@ PetKit device ──HTTP───► petkit-local ──MQTT discovery──► 
 | `mqtt_tls` | `true` | Add a TLS listener to the device-facing broker (self-signed, generated on first start). |
 | `mqtt_tls_port` | `443` | Port for that listener. Change this and the matching port mapping together if your device dials a different one. |
 | `mqtt_strict_auth` | `false` | Enforce the Aliyun HMAC signature. Off by default so a signature nuance cannot lock a device out. |
+| `esp32_aliyun_mqtt_host` | `false` | Tell ESP32 devices to reach the broker as `<productKey>.iot-as-mqtt.eu-central-1.aliyuncs.com` instead of the API host. This needs your DNS to resolve that name to this host and a trusted certificate that covers it; otherwise leave it disabled. Linux models are unaffected. |
 
 Fresh Element Gemini D4S firmware 1.198 was tested with the default
 `mqtt_tls: true`. It uses HTTP heartbeats for state and commands; no device MQTT
